@@ -87,7 +87,7 @@ max(interval.mean$mean.steps)
 
 1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs).
 
-There are `r sum(is.na(df$steps))` NA's in the dataset. This was obtained with the following code.
+There are 2304 NA's in the dataset. This was obtained with the following code.
 
 ```{r}
 sum(is.na(df$steps))
