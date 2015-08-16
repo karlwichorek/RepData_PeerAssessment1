@@ -1,25 +1,182 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "PA1_Template"
+author: "Karl Wichorek"
+date: "August 16, 2015"
+output: html_document
 ---
 
+### I. Load the data
 
-## Loading and preprocessing the data
+```{r}
+library(dplyr)
+library(ggplot2)
+df <- read.csv("./activity.csv",  header = TRUE)
+```
+
+### II. What is mean total number of steps taken per day?
+
+1. Calculate the total number of steps taken per day
+
+First, filter the data so you only have complete cases. Then, calculate the total number of steps taken each day.
+
+```{r}
+df.complete <- df[complete.cases(df), ]
+df.grouped <- group_by(df.complete, date)
+daily.sum <- summarize(df.grouped, sum(steps))
+colnames(daily.sum) <- c("date", "daily.total.steps")
+```
+
+2. Make a histogram of the total number of steps taken each day.
+
+Now, the data has been grouped by date, with the total number of steps taken in a day recorded for each date, and we can plot a histogram of the total daily steps.
+
+```{r}
+g <- ggplot(daily.sum, aes(x = daily.total.steps)) +
+        geom_histogram(fill = "steelblue", binwidth = 1000)
+g <- g + labs(x = "Daily total steps", y = "Counts") + 
+        scale_y_continuous(breaks = seq(0, 10, by=2))
+print(g)
+```
+
+3. Calculate and report the mean and median of the total number of steps taken per day.
+
+We can calculate the mean and median for our data with the code below.
+
+```{r}
+summarize(daily.sum, daily.step.mean = mean(daily.total.steps, na.rm = TRUE),
+          daily.step.median = median(daily.total.steps))
+```
+
+As we can see, the mean was 10766.19 and the median was 10765.
 
 
+### III. What is the daily activity pattern?
 
-## What is mean total number of steps taken per day?
+1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
+
+Again, we're going to filter by complete cases and make a dataframe that has two columns- "interval" and "mean.steps."
+
+```{r}
+df.complete <- df[complete.cases(df), ]
+df.grouped <- group_by(df.complete, interval)
+interval.mean <- summarize(df.grouped, mean(steps, na.rm = TRUE))
+colnames(interval.mean) <- c("interval", "mean.steps")
+```
+
+Now, plot the graph.
+
+```{r}
+g2 <- ggplot(interval.mean, aes(x = interval, y = mean.steps)) + 
+        geom_line() + 
+        labs(x = "Interval", y = "Number of steps" ) +
+        scale_x_continuous(breaks = c(0, 500, 1000, 1500, 2000), labels = c("00:00", "05:00", "10:00", "15:00", "20:00"))
+print (g2)
+```
+
+2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+With the below code, we can see the maximum number, 206.1698, was recorded at the interval 835 (08:35).
+
+```{r}
+interval.mean[which.max(interval.mean$mean.steps), "interval"]
+max(interval.mean$mean.steps)
+```
 
 
+### IV. Effects of imputation
 
-## What is the average daily activity pattern?
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs).
+
+There are `r sum(is.na(df$steps))` NA's in the dataset. This was obtained with the following code.
+
+```{r}
+sum(is.na(df$steps))
+```
+
+2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+I imputed the mean number of steps of each 5-minute interval. This was calculated in Part III. as "interval.mean." 
+
+3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+Start by joining the "df" and "interval.mean" dataframes on the key "interval." The column "mean.steps" will be added.
+
+```{r}
+# Join df and interval.mean data on the key "interval"
+df.new <- left_join(df, interval.mean, by = "interval")
+```
+
+Missing values were imputed with the following code.
+
+```{r}
+# Impute missing values with the values in the mean.steps column
+df.new$steps <- ifelse(is.na(df.new$steps), df.new$mean.steps, df.new$steps)
+```
+
+4. Make a histogram of the total number of steps taken each day and calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+Calculate the total number of steps taken each day in the same way as Part II. But, use imputed data.
+
+```{r}
+df.grouped.imp <- group_by(df.new, date)
+daily.sum.imp <- summarize(df.grouped.imp, sum(steps))
+colnames(daily.sum.imp) <- c("date", "daily.total.steps.imp")
+```
+
+Plot the histogram of "daily.total.steps.imp"
+
+```{r}
+g3 <- ggplot(daily.sum.imp, aes(x = daily.total.steps.imp)) + 
+        geom_histogram(fill = "steelblue", binwidth = 1000)
+g3 <- g3 + labs(x = "Daily total steps with imputation", y = "Counts") + 
+        scale_y_continuous(breaks = seq(0, 20, by=2))
+print(g3)
+```
+
+Calculate the mean and median with the imputed data.
+
+```{r}
+summarize(daily.sum.imp, daily.step.mean.imp = mean(daily.total.steps.imp, na.rm = TRUE),
+          daily.step.median.imp = median(daily.total.steps.imp))
+```
+
+The new mean is 10766.19 and the new median is 10766.19. These estimates are almost identical to the ones calculated with the data before imputation in Part II.
+
+The two histograms have a significant difference in their peaks. The histogram with imputation shows almost twice the concentration of counts at the mean value on the x-axis.
+
+The estimates for the mean and median of the data are unaffected by imputation, but the concentration of counts is affected by imputation.
 
 
+### V. Are there differences in activity patterns between weekdays and weekends?
 
-## Imputing missing values
+1. Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
 
+Convert the "date" column into a Date class and add a "day.of.the.week" column using the weekday() function. Add another column, "day.type", that distinguishes between the weekend and a weekday.
 
+```{r}
+df.days <- mutate(df.new, date=as.Date(date))
+df.days <- mutate(df.days, day.of.the.week = weekdays(df.days$date))
 
-## Are there differences in activity patterns between weekdays and weekends?
+df.days$day.type <- as.factor(ifelse((df.days$day.of.the.week == "Sunday" | df.days$day.of.the.week == "Saturday"), "weekend", "weekday"))
+```
+
+2. Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+
+Create a new dataframe "interval.mean.day.type" that has three columns "day.type (weekend/weekday)", "interval" and "mean.steps.interval.day.type" that shows the mean step numbers categorized by "interval" and "day.type."
+
+```{r}
+df.days.grouped <- group_by(df.days, interval, day.type)
+interval.mean.day.type <- summarize(df.days.grouped, mean(steps, na.rm = TRUE))
+colnames(interval.mean.day.type) <- c("interval", "day.type", "mean.steps.interval.day.type")
+```
+
+Plot the graph.
+
+```{r}
+g4 <- ggplot(interval.mean.day.type, aes(x = interval, y = mean.steps.interval.day.type)) + 
+        geom_line() + facet_grid(day.type ~ .) +
+        labs(x = "Interval", y = "Number of steps" ) +
+        scale_x_continuous(breaks = c(0, 500, 1000, 1500, 2000), 
+                           labels = c("00:00", "05:00", "10:00", "15:00", "20:00"))
+print (g4)
+```
